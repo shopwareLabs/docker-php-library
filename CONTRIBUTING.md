@@ -14,6 +14,14 @@ You will need the following software packages to run the [`./apply-templates.sh`
 - [`jq`](https://stedolan.github.io/jq/)
 - A recent version of Bash
 
+## Updating PHP source archives
+
+Run `node update-php.mjs` with Node.js 22 or newer. It checks PHP.net for new
+patch releases in the stable series tracked in `versions.json`, updates the
+archive URL, signature URL, and SHA-256, and regenerates the affected Dockerfiles.
+The template renderer uses the requirements above and `wget` to fetch its AWK
+template helper when needed.
+
 ## Publishing PHP images to GHCR
 
 The [GHCR workflow](.github/workflows/publish-ghcr.yml) builds the active stable PHP
