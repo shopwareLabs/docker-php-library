@@ -13,3 +13,15 @@ You will need the following software packages to run the [`./apply-templates.sh`
 - [GNU awk](https://www.gnu.org/software/gawk/) available as `gawk`.
 - [`jq`](https://stedolan.github.io/jq/)
 - A recent version of Bash
+
+## Publishing PHP images to GHCR
+
+The [GHCR workflow](.github/workflows/publish-ghcr.yml) builds the active PHP
+versions and variants when image sources change on `master`. You can also run
+it manually on `master` to rebuild the matrix. It uses the same tag aliases as
+the Docker Official Image metadata and publishes both `linux/amd64` and
+`linux/arm64` under each tag.
+
+```sh
+docker pull ghcr.io/shopwarelabs/docker-php-library:8.5-fpm-alpine
+```

@@ -8,6 +8,12 @@ declare -A aliases=(
 self="$(basename "$BASH_SOURCE")"
 cd "$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
+tagsOnly=
+if [ "${1:-}" = '--tags-only' ]; then
+	tagsOnly=1
+	shift
+fi
+
 if [ "$#" -eq 0 ]; then
 	versions="$(jq -r 'to_entries | map(if .value then .key | @sh else empty end) | join(" ")' versions.json)"
 	eval "set -- $versions"
@@ -54,15 +60,17 @@ getArches() {
 	)"
 	eval "declare -g -A parentRepoToArches=( $parentRepoToArchesStr )"
 }
-getArches 'php'
+if [ -z "$tagsOnly" ]; then
+	getArches 'php'
 
-cat <<-EOH
-# this file is generated via https://github.com/docker-library/php/blob/$(fileCommit "$self")/$self
+	cat <<-EOH
+		# this file is generated via https://github.com/docker-library/php/blob/$(fileCommit "$self")/$self
 
-Maintainers: Tianon Gravi <admwiggin@gmail.com> (@tianon),
-             Joseph Ferguson <yosifkit@gmail.com> (@yosifkit)
-GitRepo: https://github.com/docker-library/php.git
-EOH
+		Maintainers: Tianon Gravi <admwiggin@gmail.com> (@tianon),
+		             Joseph Ferguson <yosifkit@gmail.com> (@yosifkit)
+		GitRepo: https://github.com/docker-library/php.git
+	EOH
+fi
 
 # prints "$2$1$3$1...$N"
 join() {
@@ -123,6 +131,10 @@ for version; do
 		suite="$(dirname "$dir")" # "buster", etc
 		variant="$(basename "$dir")" # "cli", etc
 		dir="$version/$dir"
+		if [ -n "$tagsOnly" ] && [ ! -f "$dir/Dockerfile" ]; then
+			echo "Missing Dockerfile for $dir" >&2
+			exit 1
+		fi
 		[ -f "$dir/Dockerfile" ] || continue
 
 		variantAliases=( "${versionAliases[@]/%/-$variant}" )
@@ -140,6 +152,11 @@ for version; do
 		fi
 		variantAliases=( "${suiteVariantAliases[@]}" ${variantAliases[@]+"${variantAliases[@]}"} )
 		variantAliases=( "${variantAliases[@]//latest-/}" )
+
+		if [ -n "$tagsOnly" ]; then
+			printf '%s\t%s\n' "$dir" "$(join ', ' "${variantAliases[@]}")"
+			continue
+		fi
 
 		variantParent="$(awk 'toupper($1) == "FROM" { print $2 }' "$dir/Dockerfile")"
 		variantArches="${parentRepoToArches[$variantParent]}"

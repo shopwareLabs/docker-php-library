@@ -1,0 +1,73 @@
+name: Publish PHP images to GHCR
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '[0-9].*/**'
+      - 'versions.json'
+      - 'generate-stackbrew-library.sh'
+      - '.github/workflows/publish-ghcr.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-ghcr
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    outputs:
+      images: ${{ steps.matrix.outputs.images }}
+      repository: ${{ steps.matrix.outputs.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate image matrix
+        id: matrix
+        run: |
+          set -o pipefail
+          images="$(./generate-stackbrew-library.sh --tags-only | jq -Rsc '
+            [split("\n")[] | select(length > 0) | split("\t") | {
+              context: .[0],
+              name: (.[0] | gsub("/"; "-")),
+              tags: (.[1] | split(", "))
+            }]
+            | if length == 0 then error("No PHP image variants") else . end
+            | if ([.[].tags[]] | group_by(.) | any(length > 1)) then error("Duplicate PHP image tag") else . end
+            | map(.tags |= (map("type=raw,value=" + .) | join("\n")))
+          ')"
+          printf 'images=%s\nrepository=ghcr.io/%s\n' "$images" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: matrix
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.images) }}
+    uses: docker/github-builder/.github/workflows/build.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee # v1.19.0
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      runner: |
+        default=ubuntu-24.04
+        linux/arm64=ubuntu-24.04-arm
+      context: ${{ matrix.context }}
+      platforms: linux/amd64,linux/arm64
+      output: image
+      push: true
+      meta-images: ${{ needs.matrix.outputs.repository }}
+      meta-tags: ${{ matrix.tags }}
+      meta-flavor: latest=false
+      set-meta-labels: true
+    secrets:
+      registry-auths: |
+        - registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
