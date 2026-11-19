@@ -22,6 +22,9 @@ it manually on `master` to rebuild the matrix. It uses the same tag aliases as
 the Docker Official Image metadata and publishes both `linux/amd64` and
 `linux/arm64` under each tag.
 
+To retry specific variants, set the workflow's `contexts` input to their
+comma-separated paths, for example `8.5/trixie/cli,8.5/alpine3.24/fpm`.
+
 ```sh
 docker pull ghcr.io/shopwarelabs/docker-php-library:8.5-fpm-alpine
 ```

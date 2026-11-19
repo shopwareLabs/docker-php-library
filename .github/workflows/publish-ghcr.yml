@@ -9,6 +9,10 @@ on:
       - 'generate-stackbrew-library.sh'
       - '.github/workflows/publish-ghcr.yml'
   workflow_dispatch:
+    inputs:
+      contexts:
+        description: Comma-separated build contexts to retry (empty builds the full matrix)
+        type: string
 
 concurrency:
   group: publish-ghcr
@@ -28,9 +32,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Generate image matrix
         id: matrix
+        env:
+          CONTEXTS: ${{ inputs.contexts }}
         run: |
           set -o pipefail
-          images="$(./generate-stackbrew-library.sh --tags-only | jq -Rsc '
+          images="$(./generate-stackbrew-library.sh --tags-only | jq -Rsc --arg contexts "$CONTEXTS" '
             [split("\n")[] | select(length > 0) | split("\t") | {
               context: .[0],
               name: (.[0] | gsub("/"; "-")),
@@ -38,6 +44,11 @@ jobs:
             }]
             | if length == 0 then error("No PHP image variants") else . end
             | if ([.[].tags[]] | group_by(.) | any(length > 1)) then error("Duplicate PHP image tag") else . end
+            | ($contexts | split(",") | map(gsub("^\\s+|\\s+$"; "") | select(length > 0))) as $selected
+            | ($selected - map(.context)) as $unknown
+            | if $unknown != [] then error("Unknown PHP build contexts \($unknown | join(", "))")
+              elif $selected != [] then map(select(.context as $context | $selected | index($context)))
+              else . end
             | map(.tags |= (map("type=raw,value=" + .) | join("\n")))
           ')"
           printf 'images=%s\nrepository=ghcr.io/%s\n' "$images" "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
@@ -47,6 +58,7 @@ jobs:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
+      max-parallel: 24 # Avoid a burst of concurrent GHCR uploads and manifest writes.
       matrix:
         include: ${{ fromJSON(needs.matrix.outputs.images) }}
     uses: docker/github-builder/.github/workflows/build.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee # v1.19.0
