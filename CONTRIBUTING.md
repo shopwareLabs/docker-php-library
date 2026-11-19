@@ -16,7 +16,7 @@ You will need the following software packages to run the [`./apply-templates.sh`
 
 ## Publishing PHP images to GHCR
 
-The [GHCR workflow](.github/workflows/publish-ghcr.yml) builds the active PHP
+The [GHCR workflow](.github/workflows/publish-ghcr.yml) builds the active stable PHP
 versions and variants when image sources change on `master`. You can also run
 it manually on `master` to rebuild the matrix. It uses the same tag aliases as
 the Docker Official Image metadata and publishes both `linux/amd64` and

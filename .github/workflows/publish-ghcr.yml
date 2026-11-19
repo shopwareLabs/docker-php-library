@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - '[0-9].*/**'
+      - '![0-9].*-rc/**'
       - 'versions.json'
       - 'generate-stackbrew-library.sh'
       - '.github/workflows/publish-ghcr.yml'
@@ -36,7 +37,11 @@ jobs:
           CONTEXTS: ${{ inputs.contexts }}
         run: |
           set -o pipefail
-          images="$(./generate-stackbrew-library.sh --tags-only | jq -Rsc --arg contexts "$CONTEXTS" '
+          stable_versions="$(jq -er '
+            to_entries[] | select(.value != null and (.key | endswith("-rc") | not)) | .key
+          ' versions.json)"
+          mapfile -t versions <<< "$stable_versions"
+          images="$(./generate-stackbrew-library.sh --tags-only "${versions[@]}" | jq -Rsc --arg contexts "$CONTEXTS" '
             [split("\n")[] | select(length > 0) | split("\t") | {
               context: .[0],
               name: (.[0] | gsub("/"; "-")),
